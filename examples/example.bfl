@@ -47,7 +47,7 @@ def printList(asdf : list(?)){
     count = 6
     while count {
         asdf -> ghjkl
-        ghjkl ->dffef
+        ghjkl -> dffef
         out(dffef)
     }
 }return 0
