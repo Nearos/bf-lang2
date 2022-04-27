@@ -6,6 +6,7 @@ import Control.Monad.Trans.State
 
 import Parser
 import TypeInfer
+import qualified Ast
 
 main :: IO ()
 main = do
@@ -17,9 +18,9 @@ main = do
             case parseLang x code of
                 Left err -> print err
                 Right ast -> do
-                    print ast
+                    -- print ast
                     case typeCheck ast of
                         Left err -> print err
                         Right functions -> do
                             putStrLn "Sucessfully typechecked!"
-                            print functions
+                            mapM_ (putStrLn . Ast.showFunType) functions

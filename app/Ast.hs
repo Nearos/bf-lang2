@@ -61,3 +61,20 @@ type PProgram = Program SourcePos SourcePos SourcePos
 type PFunDef = Meta SourcePos (FunDef SourcePos SourcePos)
 type PStatement = Meta SourcePos (Statement SourcePos)
 type PExpression = Meta SourcePos (Expression)
+
+showFunType :: Meta [(Symbol, Typ)] (FunDef Typ a )
+             -> String 
+showFunType (Meta f (FunDef name args _ (Meta retType _))) =
+    name ++" : function(" 
+    ++ intercalate ", " (map (show . snd) args)
+    ++ ") -> "
+    ++ show retType 
+    ++ "\n    "
+    ++ printLstTypes f
+    ++ "\n"
+    where 
+        printLstTypes [] = ""
+        printLstTypes ((sym, typ):xs) = 
+            sym ++ " : " ++ show typ 
+            ++ "    "
+            ++ printLstTypes xs
