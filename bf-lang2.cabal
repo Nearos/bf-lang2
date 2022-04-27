@@ -25,7 +25,7 @@ executable bf-lang2
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules: Ast, Parser, TypeInfer
+    other-modules: Ast, Parser, TypeInfer, CodeGen
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
     build-depends:    base ^>=4.14.3.0, parsec >= 3.1.15.0, text>=1.2.4.1, transformers >= 0.5.6.2

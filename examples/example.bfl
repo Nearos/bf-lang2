@@ -43,6 +43,7 @@ def readList(){
     }
 }return lst
 
+
 def printList(lst){
     count = 6
     while count {

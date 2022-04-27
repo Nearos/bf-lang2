@@ -1,0 +1,145 @@
+def not(a) {
+    b = 1
+    if a {
+        b=0
+    }
+} return b
+
+def add(a, b){
+    while a {
+        b = inc(b)
+        a = dec(a)
+    }
+} return b
+
+def mul(a, b) {
+    res = 0
+    while a {
+        res = add(res, b)
+        a = dec(a)
+    }
+} return res
+
+def and(a, b) {
+    res = 0
+    if a {
+        if b {
+            res =1
+        }
+    }
+}return res
+
+def lt(a, b) {
+    while and(a, b) {
+        a = dec(a)
+        b = dec(b)
+    }
+} return b
+
+def eq(a, b) {
+    while and(a, b) {
+        a = dec(a)
+        b = dec(b)
+    }
+} return and(not(a), not(b))
+
+def leq(a, b) {}
+return not(lt(b,a))
+
+def gt(a, b) {}
+return lt(b, a)
+
+def geq(a, b) {}
+return leq(b, a)
+
+def sub(a, b) {
+    while b {
+        a = dec(a)
+        b = dec(b)
+    }
+} return a
+
+def div(a, b) {
+    res = 0
+    while leq(b, a) {
+        res = inc(res)
+        a = sub(a, b)
+    }
+}return res
+
+def rem(a, b) {
+    while leq(b, a) {
+        a = sub(a, b)
+    }
+} return a 
+
+def cEq(a, b) {} return eq(atoi(a), atoi(b))
+
+def dig2byte(a) {
+    na = atoi(a)
+    b=sub(na, 48)
+    if not(and(lt(b, 10), leq(b, na))) {
+        b=0
+    }
+} return b
+
+def inputByte() {
+    res = 0
+    input = itoa(0)
+    while not(cEq(input, '.')) {
+        res = mul(res, 10)
+        digit = dig2byte(input)
+        res = add(res, digit)
+        input = in()
+    }
+} return res
+
+def byte2dig(a) {
+    b=atoi('E')
+    if and(lt(a, 10), leq(0, a)) {
+        b=add(a, 48)
+    }
+} return itoa(b)
+
+def naiveOutByte(b) {
+    while b {
+        dig = rem(b, 10)
+        b =div(b, 10)
+        out(byte2dig(dig))
+    }
+}
+
+def outputByte(b) {
+    out(byte2dig(div(b, 100)))
+    r1 = rem(b, 100)
+    out(byte2dig(div(r1, 10)))
+    r2 = rem(r1, 10)
+    out(byte2dig(r2))
+}
+
+def main() {
+    a = 1
+    b = 1
+    while leq(a, 100) {
+        b = 1
+        if eq(rem(a, 3), 0) {
+            out('f')
+            out('i')
+            out('z')
+            out('z')
+            b = 0
+        }
+        if eq(rem(a, 5), 0) {
+            out('b')
+            out('u')
+            out('z')
+            out('z')
+            b=0
+        }
+        if b {
+            outputByte(a)
+        }
+        out(itoa(10))
+        a = inc(a)
+    }
+}
