@@ -90,22 +90,34 @@ parseStatements = do
 parseStatement :: Parser PStatement
 parseStatement = do
     pos <- getPosition 
-    stmt <- parseIf <|> parseWhile <|> try parseAssignment <|> parseExpr
+    stmt <- parseIf 
+            <|> parseWhile 
+            <|> try parseAssignment 
+            <|> try parsePop 
+            <|> parseExpr
     return $ Meta pos stmt
 
 parseAssignment :: Parser (Statement SourcePos SourcePos)
 parseAssignment = do
     sym <- parseSymbol
     commentSpaces
-    assignType <- string "=" <|> string "<-" <|> string "->"
+    assignType <- string "=" <|> string "<-"
     commentSpaces
     expr <- parseExpression
     let assignBuilder = 
             case assignType of
                 "="  -> Assignment
                 "<-" -> Push
-                "->" -> Pop
     return $ assignBuilder sym expr
+
+parsePop :: Parser (Statement SourcePos SourcePos)
+parsePop = do 
+    lsym <- parseSymbol
+    commentSpaces
+    string "->"
+    commentSpaces
+    esym <- parseSymbol
+    return $ Pop lsym esym
 
 parseExpr :: Parser (Statement SourcePos SourcePos)
 parseExpr = Expr <$> parseExpression

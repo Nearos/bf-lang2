@@ -283,9 +283,9 @@ typeCheckStatement (Pop sym expr) = do
     idx <- getIndex
     lsttyp <- lookupMatchOrAdd sym $ List $ Unknown idx
     let typ = case lsttyp of List a -> a
-    typ <- typeCheckExprMeta typ expr
-    lookupMatchOrAdd sym (List $ snd typ)
-    return $ Meta () $ Pop sym $ fst typ
+    typ <- lookupMatchOrAdd expr typ
+    lookupMatchOrAdd sym $ List typ
+    return $ Meta () $ Pop sym expr
 
 typeCheckStatement (Expr expr) = do
     idx <- getIndex
@@ -417,7 +417,7 @@ resolveStatementMeta (Meta () stmt) = Meta () <$> resolveStatement stmt
 
 resolveStatement (Assignment s e) = Assignment s <$> resolveExprMeta e
 resolveStatement (Push s e) = Push s <$> resolveExprMeta e 
-resolveStatement (Pop s e) = Pop s <$> resolveExprMeta e 
+resolveStatement (Pop s e) = return $ Pop s e 
 resolveStatement (Expr e) = Expr <$> resolveExprMeta e 
 resolveStatement (If e s1 s2) = If <$> resolveExprMeta e 
                                     <*> resolveStatements s1 

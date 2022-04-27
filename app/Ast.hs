@@ -44,7 +44,7 @@ data Expression m   = Null
 
 data Statement e m  = Assignment Symbol (Meta e Expression)
                     | Push Symbol (Meta e Expression)
-                    | Pop Symbol (Meta e Expression)
+                    | Pop Symbol Symbol
                     | Expr (Meta e Expression)
                     | If (Meta e Expression) [Meta m (Statement e)] [Meta m (Statement e)]
                     | While (Meta e Expression) [Meta m (Statement e)] 
