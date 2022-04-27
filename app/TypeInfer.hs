@@ -5,28 +5,11 @@ import Control.Monad
 
 import Ast
 
-matchTyp :: Typ -> Typ -> Maybe Typ
-matchTyp Unknown b = Just b
-matchTyp a Unknown = Just a
-matchTyp Byte Byte = Just Byte
-matchTyp (List a) (List b) = do
-    sub <- matchTyp a b
-    return $ List sub 
 
-matchTyp (Arrow args1 ret1) (Arrow args2 ret2) = do 
-    ret <- matchTyp ret1 ret2
-    args <- mapM (uncurry matchTyp) $ zip args1 args2
-    return $ Arrow args ret
-
-matchTyp (UnknownFun a) (UnknownFun b) = UnknownFun <$> matchTyp a b
-matchTyp (UnknownFun a) (Arrow bs b) = Arrow bs <$> matchTyp a b
-matchTyp (Arrow as a) (UnknownFun b) = Arrow as <$> matchTyp a b
-
-matchTyp _ _ = Nothing
 
 known :: Typ -> Bool
-known Unknown = False
-known (UnknownFun _) = False
+known (Unknown _) = False
+known (UnknownFun _ _) = False
 known Byte = True
 
 known (List a) = known a
@@ -59,31 +42,107 @@ data TypeCheckContextEntry  = Def {defSym :: Symbol, defTyp :: Typ}
 contextEntryUnknown FrameSep = False
 contextEntryUnknown (Def _ typ) = not $ known typ
 
-type TypeCheckContext = [TypeCheckContextEntry]
+data TypeCheckContext = TypeCheckContext {
+        decl :: [TypeCheckContextEntry],
+        varIndex :: Int
+    }
 
 type TypeCheckEnvironment = StateT TypeCheckContext (Either TypeCheckError)
+
+---
+--StateT 'lenses'
+
+getDecl = decl <$> get
+putDecl dec = do 
+    ctx <- get
+    put $ ctx {decl = dec}
+modifyDecl f = do
+    ctx <- get
+    put $ ctx {decl = f $ decl ctx}
+getsDecl = (<$>getDecl)
+
+
+getIndex = do 
+    ctx <- get
+    let num = varIndex ctx
+    put $ ctx {varIndex = num + 1}
+    return num
+---
+
+instantiateTypeVariable :: Int -> Typ -> [TypeCheckContextEntry] -> [TypeCheckContextEntry]
+instantiateTypeVariable var val = map go 
+    where 
+        go FrameSep = FrameSep
+        go (Def ctx typ) = Def ctx $ fix typ
+        
+        fix Byte = Byte
+        fix (List a) = List $ fix a
+        fix (Arrow args ret) = Arrow (map fix args) $ fix ret
+        fix (Unknown n) 
+            | n == var = val
+            | otherwise = Unknown n
+        
+        fix (UnknownFun n res)
+            | n == var = val
+            | otherwise = UnknownFun n $ fix res
+
+matchTyp :: Typ -> Typ -> TypeCheckEnvironment Typ
+matchTyp (Unknown id) b = do
+    modifyDecl $ instantiateTypeVariable id b
+    return b
+matchTyp a (Unknown id) = do
+    modifyDecl $ instantiateTypeVariable id a
+    return a
+matchTyp Byte Byte = return Byte
+matchTyp (List a) (List b) = do
+    sub <- matchTyp a b
+    return $ List sub
+
+matchTyp (Arrow args1 ret1) (Arrow args2 ret2) = do 
+    ret <- matchTyp ret1 ret2
+    args <- mapM (uncurry matchTyp) $ zip args1 args2
+    return $ Arrow args ret
+
+matchTyp (UnknownFun ida a) (UnknownFun idb b) = do
+    resret <- matchTyp a b
+    nextId <- getIndex
+    let newVar = UnknownFun nextId resret
+    modifyDecl $ (
+        instantiateTypeVariable ida newVar
+        . instantiateTypeVariable idb newVar)
+    return $ UnknownFun nextId resret
+
+matchTyp (UnknownFun ida a) (Arrow bs b) = do
+    res <- matchTyp a b
+    let newType = Arrow bs res
+    modifyDecl $ instantiateTypeVariable ida newType
+    return newType
+
+matchTyp (Arrow as a) (UnknownFun idb b) = do
+    res <- matchTyp a b
+    let newType = Arrow as res
+    modifyDecl $ instantiateTypeVariable idb newType
+    return newType
+
+matchTyp a b = failTC $ TypeMismatch a b ""
+
+---
 
 failTC :: TypeCheckError -> TypeCheckEnvironment a
 failTC = StateT . const . Left 
 
 lookupMatchOrAdd :: Symbol -> Typ -> TypeCheckEnvironment Typ
 lookupMatchOrAdd sym typ = do
-    ctx <- get
-    (ctx', ret) <- 
-        case go ctx id of 
-            Right a -> return $ a
-            Left err -> failTC $ err
-    put ctx'
-    return ret
+    ctx <- getDecl
+    go ctx
     where
-        go :: TypeCheckContext -> (TypeCheckContext -> TypeCheckContext) -> Either TypeCheckError (TypeCheckContext, Typ)
-        go [] rebuild = Right (Def sym typ : rebuild [], typ)
-        go ((Def s t):xs) rebuild
-            | s == sym = case matchTyp typ t of 
-                Just res -> Right $ (rebuild $ (Def sym res) : xs, res)
-                Nothing -> Left $ TypeMismatch typ t $ "symbol \"" ++ sym ++"\""
-            | otherwise = go xs (rebuild . ((Def s t):) )
-        go (a:xs) rebuild = go xs (rebuild . (a:))
+        go :: [TypeCheckContextEntry] -> TypeCheckEnvironment Typ
+        go [] = const typ <$> modifyDecl (Def sym typ :)
+        go (FrameSep:xs) = go xs
+        go (Def s t:xs)
+            | s == sym = matchTyp t typ
+            | otherwise = go xs
+
         
 
 ---
@@ -92,20 +151,19 @@ typeCheckExpr :: Typ -> Expression -> TypeCheckEnvironment Typ
 typeCheckExpr typ (Variable s) = lookupMatchOrAdd s typ
 
 typeCheckExpr typ (IntLit _) =
-    case matchTyp typ Byte of
-        Just a -> return a
-        Nothing -> failTC $ TypeMismatch Byte typ "Number literal"
+    matchTyp typ Byte
 
 typeCheckExpr typ (CharLit _) =
-    case matchTyp typ Byte of
-        Just a -> return a
-        Nothing -> failTC $ TypeMismatch Byte typ "Character literal"
+    matchTyp typ Byte
 
 typeCheckExpr typ (Function name args) = do
-    funtyp <- lookupMatchOrAdd name (UnknownFun typ)
+    index <- getIndex
+    funtyp <- lookupMatchOrAdd name (UnknownFun index typ)
     argTypes <-
         case funtyp of 
-            UnknownFun _ -> mapM (typeCheckExpr Unknown) args
+            UnknownFun _ _ -> forM args $ \arg -> do
+                idx <- getIndex
+                typeCheckExpr (Unknown idx) arg
             Arrow expectedArgs _ -> do
                 let 
                     nexp = length expectedArgs
@@ -114,9 +172,10 @@ typeCheckExpr typ (Function name args) = do
                     failTC $ ArgCount name nexp ngiv
                 zipWithM typeCheckExpr expectedArgs args
             _ -> failTC $ TypeType funtyp "Not a function type"
-    res <- lookupMatchOrAdd name (Arrow argTypes Unknown)
+    idx <- getIndex
+    res <- lookupMatchOrAdd name $ Arrow argTypes $  Unknown idx
     case res of
-        UnknownFun a -> return a
+        UnknownFun _ a -> return a
         Arrow _ a -> return a
         _ -> failTC $ TypeType res "Not a function type 2"
 
@@ -127,27 +186,31 @@ typeCheckStatements stmnts = const () <$> mapM typeCheckStatement stmnts
 
 typeCheckStatement :: Statement -> TypeCheckEnvironment () 
 typeCheckStatement (Assignment sym expr) = do
-    typ <- lookupMatchOrAdd sym Unknown
+    idx <- getIndex
+    typ <- lookupMatchOrAdd sym $ Unknown idx
     typ <- typeCheckExpr typ expr
     lookupMatchOrAdd sym typ
     return ()
 
 typeCheckStatement (Push sym expr) = do
-    lsttyp <- lookupMatchOrAdd sym (List Unknown)
+    idx <- getIndex
+    lsttyp <- lookupMatchOrAdd sym $ List $ Unknown idx
     let typ = case lsttyp of List a -> a
     typ <- typeCheckExpr typ expr
     lookupMatchOrAdd sym (List typ)
     return ()
 
 typeCheckStatement (Pop sym expr) = do
-    lsttyp <- lookupMatchOrAdd sym (List Unknown)
+    idx <- getIndex
+    lsttyp <- lookupMatchOrAdd sym $ List $ Unknown idx
     let typ = case lsttyp of List a -> a
     typ <- typeCheckExpr typ expr
     lookupMatchOrAdd sym (List typ)
     return ()
 
 typeCheckStatement (Expr expr) = do
-    typeCheckExpr Unknown expr
+    idx <- getIndex
+    typeCheckExpr (Unknown idx) expr
     return ()
 
 typeCheckStatement (If expr stmnts1 stmnts2) = do
@@ -166,17 +229,18 @@ typeCheckFunDefs defs = const () <$> mapM typeCheckFunDef defs
 
 typeCheckFunDef :: FunDef -> TypeCheckEnvironment ()
 typeCheckFunDef (FunDef name args body returnValue) = do
-    modify pushFrame
+    modifyDecl pushFrame
     mapM (uncurry lookupMatchOrAdd) args
     typeCheckStatements body
-    retType <- typeCheckExpr Unknown returnValue
+    idx <- getIndex
+    retType <- typeCheckExpr (Unknown idx) returnValue
     argTypes <- mapM (uncurry lookupMatchOrAdd) args
-    ctx <- get
+    ctx <- getDecl
     case filter contextEntryUnknown ctx of
         [] -> return ()
         Def sym typ:_ -> failTC $ Unresolved sym typ
         _ -> undefined
-    put $ popFrame ctx
+    putDecl $ popFrame ctx
     lookupMatchOrAdd name (Arrow argTypes retType)
     return ()
     where 
@@ -187,18 +251,21 @@ typeCheckFunDef (FunDef name args body returnValue) = do
         pushFrame xs = FrameSep:xs
 
 ---
-initialContext = [
-    Def "in" $ Arrow [] Byte, 
-    Def "out" $ Arrow [Byte] Byte, -- no void type yet
-    Def "inc" $ Arrow [Byte] Byte,
-    Def "dec" $ Arrow [Byte] Byte
-    ]
+initialContext = TypeCheckContext{
+    decl =  [
+        Def "in" $ Arrow [] Byte, 
+        Def "out" $ Arrow [Byte] Byte, -- no void type yet
+        Def "inc" $ Arrow [Byte] Byte,
+        Def "dec" $ Arrow [Byte] Byte
+        ],
+    varIndex = 1
+}
 
 typeCheck :: Program -> Maybe TypeCheckError
 typeCheck prog = 
     case execStateT (typeCheckFunDefs prog) initialContext  of
         Left err -> Just err
-        Right ctx -> case filter contextEntryUnknown ctx of
+        Right ctx -> case filter contextEntryUnknown (decl ctx) of
             [] -> Nothing
             Def n t:xs -> Just $ Unresolved n t
             FrameSep:xs -> undefined --should be impossible 

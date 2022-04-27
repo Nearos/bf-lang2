@@ -48,7 +48,7 @@ parseFunDef = do
         parseArgDecl = 
             (,) <$> parseSymbol <* commentSpaces 
             <*> (string ":" *> commentSpaces *> parseType 
-            <|> return Unknown)
+            <|> return (Unknown 0))
 
 parseSymbol :: Parser Symbol
 parseSymbol = try $ do
@@ -158,7 +158,7 @@ parseType = parseUnknownType <|> parseByteType <|> parseListType <|> parseArrowT
 parseUnknownType :: Parser Typ
 parseUnknownType = do
     string "?"
-    return Unknown
+    return $ Unknown 0
 
 parseByteType :: Parser Typ
 parseByteType = do
