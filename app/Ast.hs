@@ -28,26 +28,36 @@ instance Show Typ where
     show (UnknownFun n res) = 
         "function ?"++show n++" -> "++ show res
 
-data Expression = Variable Symbol
-                | IntLit Int
-                | CharLit Char
-                | Function Symbol [Expression]
-                deriving Show
+data Meta m d = Meta {
+        meta :: m,
+        value :: d m
+    }deriving Show
 
-data Statement  = Assignment Symbol Expression
-                | Push Symbol Expression
-                | Pop Symbol Expression
-                | Expr Expression
-                | If Expression [Statement] [Statement]
-                | While Expression [Statement] 
-                deriving Show
+data Expression m   = Variable Symbol
+                    | IntLit Int
+                    | CharLit Char
+                    | Function Symbol [Meta m Expression]
+                    deriving Show
 
-data FunDef = FunDef {
+data Statement e m  = Assignment Symbol (Meta e Expression)
+                    | Push Symbol (Meta e Expression)
+                    | Pop Symbol (Meta e Expression)
+                    | Expr (Meta e Expression)
+                    | If (Meta e Expression) [Meta m (Statement e)] [Meta m (Statement e)]
+                    | While (Meta e Expression) [Meta m (Statement e)] 
+                    deriving Show
+
+data FunDef e s f = FunDef {
         name :: Symbol,
         args :: [(Symbol, Typ)],
-        body :: [Statement],
-        returnValue :: Expression
+        body :: [Meta s (Statement e)],
+        returnValue :: Meta e Expression
     } 
     deriving Show
 
-type Program = [FunDef]
+type Program e s f = [Meta f (FunDef e s)]
+
+type PProgram = Program SourcePos SourcePos SourcePos
+type PFunDef = Meta SourcePos (FunDef SourcePos SourcePos)
+type PStatement = Meta SourcePos (Statement SourcePos)
+type PExpression = Meta SourcePos (Expression)

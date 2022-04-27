@@ -4,6 +4,8 @@ module TypeInfer where
 import Control.Monad.Trans.State
 import Control.Monad
 
+import Text.Parsec.Pos
+
 import Ast
 
 
@@ -50,7 +52,8 @@ contextEntryUnknown (Def _ typ) = not $ known typ
 
 data TypeCheckContext = TypeCheckContext {
         decl :: [TypeCheckContextEntry],
-        varIndex :: Int
+        varIndex :: Int,
+        pos :: SourcePos
     }
 
 type TypeCheckEnvironment = StateT TypeCheckContext (Either TypeCheckError)
@@ -73,6 +76,12 @@ getIndex = do
     let num = varIndex ctx
     put $ ctx {varIndex = num + 1}
     return num
+
+setPos pos = do 
+    ctx <- get
+    put $ ctx {pos = pos}
+
+getPos = gets pos
 ---
 
 instantiateTypeVariable :: Int -> Typ -> [TypeCheckContextEntry] -> [TypeCheckContextEntry]
@@ -132,7 +141,9 @@ matchTyp (Arrow as a) (UnknownFun idb b) = do
     modifyDecl $ instantiateTypeVariable idb newType
     return newType
 
-matchTyp a b = failTC $ TypeMismatch a b ""
+matchTyp a b = do
+    pos <- getPos
+    failTC $ TypeMismatch a b $ "at " ++ show pos
 
 ---
 
@@ -155,7 +166,13 @@ lookupMatchOrAdd sym typ = do
 
 ---
 
-typeCheckExpr :: Typ -> Expression -> TypeCheckEnvironment Typ
+typeCheckExprMeta :: Typ -> PExpression -> TypeCheckEnvironment Typ
+typeCheckExprMeta typ mexpr = do
+    setPos $ meta mexpr
+    typ <- typeCheckExpr typ $ value mexpr
+    return typ
+
+typeCheckExpr :: Typ -> Expression SourcePos  -> TypeCheckEnvironment Typ
 typeCheckExpr typ (Variable s) = lookupMatchOrAdd s typ
 
 typeCheckExpr typ (IntLit _) =
@@ -171,14 +188,14 @@ typeCheckExpr typ (Function name args) = do
         case funtyp of 
             UnknownFun _ _ -> forM args $ \arg -> do
                 idx <- getIndex
-                typeCheckExpr (Unknown idx) arg
+                typeCheckExprMeta (Unknown idx) arg
             Arrow expectedArgs _ -> do
                 let 
                     nexp = length expectedArgs
                     ngiv = length args
                 when (nexp /= ngiv) $ 
                     failTC $ ArgCount name nexp ngiv
-                zipWithM typeCheckExpr expectedArgs args
+                zipWithM typeCheckExprMeta expectedArgs args
             _ -> failTC $ TypeType funtyp "Not a function type"
     idx <- getIndex
     res <- lookupMatchOrAdd name $ Arrow argTypes $  Unknown idx
@@ -189,14 +206,19 @@ typeCheckExpr typ (Function name args) = do
 
 ---
 
-typeCheckStatements :: [Statement] -> TypeCheckEnvironment ()
-typeCheckStatements stmnts = const () <$> mapM typeCheckStatement stmnts
+typeCheckStatements :: [PStatement] -> TypeCheckEnvironment ()
+typeCheckStatements stmnts = const () <$> mapM typeCheckStatementMeta stmnts
 
-typeCheckStatement :: Statement -> TypeCheckEnvironment () 
+typeCheckStatementMeta :: PStatement -> TypeCheckEnvironment ()
+typeCheckStatementMeta mstmt = do
+    setPos $ meta mstmt
+    typeCheckStatement $ value mstmt
+
+typeCheckStatement :: (Statement SourcePos SourcePos) -> TypeCheckEnvironment () 
 typeCheckStatement (Assignment sym expr) = do
     idx <- getIndex
     typ <- lookupMatchOrAdd sym $ Unknown idx
-    typ <- typeCheckExpr typ expr
+    typ <- typeCheckExprMeta typ expr
     lookupMatchOrAdd sym typ
     return ()
 
@@ -204,7 +226,7 @@ typeCheckStatement (Push sym expr) = do
     idx <- getIndex
     lsttyp <- lookupMatchOrAdd sym $ List $ Unknown idx
     let typ = case lsttyp of List a -> a
-    typ <- typeCheckExpr typ expr
+    typ <- typeCheckExprMeta typ expr
     lookupMatchOrAdd sym (List typ)
     return ()
 
@@ -212,22 +234,22 @@ typeCheckStatement (Pop sym expr) = do
     idx <- getIndex
     lsttyp <- lookupMatchOrAdd sym $ List $ Unknown idx
     let typ = case lsttyp of List a -> a
-    typ <- typeCheckExpr typ expr
+    typ <- typeCheckExprMeta typ expr
     lookupMatchOrAdd sym (List typ)
     return ()
 
 typeCheckStatement (Expr expr) = do
     idx <- getIndex
-    typeCheckExpr (Unknown idx) expr
+    typeCheckExprMeta (Unknown idx) expr
     return ()
 
 typeCheckStatement (If expr stmnts1 stmnts2) = do
-    typeCheckExpr Nat expr
+    typeCheckExprMeta Nat expr
     typeCheckStatements stmnts1
     typeCheckStatements stmnts2
 
 typeCheckStatement (While expr stmts) = do 
-    typeCheckExpr Nat expr
+    typeCheckExprMeta Nat expr
     typeCheckStatements stmts
 
 ---
@@ -249,17 +271,22 @@ renumberUnknowns (Arrow as a) =
 
 ---
 
-typeCheckFunDefs :: [FunDef] -> TypeCheckEnvironment ()
-typeCheckFunDefs defs = const () <$> mapM typeCheckFunDef defs
+typeCheckFunDefs :: PProgram -> TypeCheckEnvironment ()
+typeCheckFunDefs defs = const () <$> mapM typeCheckFunDefMeta defs
 
-typeCheckFunDef :: FunDef -> TypeCheckEnvironment ()
+typeCheckFunDefMeta :: PFunDef -> TypeCheckEnvironment ()
+typeCheckFunDefMeta fd = do
+    setPos $ meta fd
+    typeCheckFunDef $ value fd
+
+typeCheckFunDef :: (FunDef SourcePos SourcePos SourcePos) -> TypeCheckEnvironment ()
 typeCheckFunDef (FunDef name args body returnValue) = do
     modifyDecl pushFrame
     args <- mapM (\(s, t) -> (s,) <$> renumberUnknowns t) args
     mapM (uncurry lookupMatchOrAdd) args
     typeCheckStatements body
     idx <- getIndex
-    retType <- typeCheckExpr (Unknown idx) returnValue
+    retType <- typeCheckExprMeta (Unknown idx) returnValue
     argTypes <- mapM (uncurry lookupMatchOrAdd) args
     ctx <- getDecl
     case filter contextEntryUnknown ctx of
@@ -286,10 +313,11 @@ initialContext = TypeCheckContext{
         Def "atoi" $ Arrow [Char] Nat,
         Def "itoa" $ Arrow [Nat] Char
         ],
-    varIndex = 1
+    varIndex = 1,
+    pos = newPos "<undefined>" 0 0
 }
 
-typeCheck :: Program -> Either TypeCheckError [TypeCheckContextEntry]
+typeCheck :: PProgram -> Either TypeCheckError [TypeCheckContextEntry]
 typeCheck prog = 
     case execStateT (typeCheckFunDefs prog) initialContext  of
         Left err -> Left err

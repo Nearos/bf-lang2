@@ -11,7 +11,7 @@ import Ast
 
 
 
-parseLang :: String -> Text -> Either CompileError Program
+parseLang :: String -> Text -> Either CompileError PProgram
 parseLang sourceName code = case parse parseProgram sourceName code of
     Right program -> Right program
     Left error -> Left $ ParseError error
@@ -23,11 +23,12 @@ commentSpaces = void $ spaces >> many (comment >> spaces)
             char '#'
             many $ noneOf "\n"
 
-parseProgram :: Parser Program
+parseProgram :: Parser PProgram
 parseProgram = many1 parseFunDef
 
-parseFunDef :: Parser FunDef
+parseFunDef :: Parser PFunDef
 parseFunDef = do
+    pos <- getPosition
     commentSpaces
     string "def"
     space
@@ -43,7 +44,7 @@ parseFunDef = do
     space
     commentSpaces
     retVal <- parseExpression
-    return $ FunDef name args body retVal
+    return $ Meta pos $ FunDef name args body retVal
     where
         parseArgDecl = 
             (,) <$> parseSymbol <* commentSpaces 
@@ -75,17 +76,20 @@ parseCommaList subParser = go <|> [] <$ commentSpaces
                 (symbol:) <$> parseCommaList subParser)
                 <|> return [symbol])
 
-parseStatements :: Parser [Statement]
+parseStatements :: Parser [PStatement]
 parseStatements = do
     char '{'
     ret <- many $ commentSpaces *> parseStatement <* commentSpaces
     char '}'
     return ret
 
-parseStatement :: Parser Statement
-parseStatement = parseIf <|> parseWhile <|> try parseAssignment <|> parseExpr
+parseStatement :: Parser PStatement
+parseStatement = do
+    pos <- getPosition 
+    stmt <- parseIf <|> parseWhile <|> try parseAssignment <|> parseExpr
+    return $ Meta pos stmt
 
-parseAssignment :: Parser Statement
+parseAssignment :: Parser (Statement SourcePos SourcePos)
 parseAssignment = do
     sym <- parseSymbol
     commentSpaces
@@ -99,10 +103,10 @@ parseAssignment = do
                 "->" -> Pop
     return $ assignBuilder sym expr
 
-parseExpr :: Parser Statement
+parseExpr :: Parser (Statement SourcePos SourcePos)
 parseExpr = Expr <$> parseExpression
 
-parseIf :: Parser Statement
+parseIf :: Parser (Statement SourcePos SourcePos)
 parseIf = try $ do
     string "if"
     commentSpaces
@@ -116,7 +120,7 @@ parseIf = try $ do
         parseStatements) <|> return []
     return $ If cond body elseBody
 
-parseWhile :: Parser Statement
+parseWhile :: Parser (Statement SourcePos SourcePos)
 parseWhile = try $ do
     string "while"
     commentSpaces
@@ -125,25 +129,28 @@ parseWhile = try $ do
     body <- parseStatements
     return $ While cond body
 
-parseExpression :: Parser Expression
-parseExpression = parseIntLit <|> parseCharLit <|> try parseFunCall <|> parseVariable
+parseExpression :: Parser PExpression
+parseExpression = do
+    pos <- getPosition
+    expr <- parseIntLit <|> parseCharLit <|> try parseFunCall <|> parseVariable
+    return $ Meta pos expr
 
-parseVariable :: Parser Expression
+parseVariable :: Parser (Expression SourcePos)
 parseVariable = Variable <$> parseSymbol
 
-parseIntLit :: Parser Expression
+parseIntLit :: Parser (Expression SourcePos)
 parseIntLit = do
     digits <- many1 digit
     return $ IntLit $ read digits
 
-parseCharLit :: Parser Expression
+parseCharLit :: Parser (Expression SourcePos)
 parseCharLit = do
     char '\''
     value <- anyChar
     char '\''
     return $ CharLit value
 
-parseFunCall :: Parser Expression
+parseFunCall :: Parser (Expression SourcePos)
 parseFunCall = do
     name <- parseSymbol
     char '('
