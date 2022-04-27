@@ -1,0 +1,52 @@
+def not(a) {
+    b = 1
+    if a {
+        b = 0
+    }
+}return b
+
+def and(a, b){
+    c = 0
+    if a {
+        if b{
+            c = 1
+        }
+    }
+}return c
+
+def or(a, b){
+    c = 0
+    if a {
+        c = 1
+    }
+    if b {
+        c = 1
+    }
+}return c
+
+def neq(a, b) {
+    while and(a, b) {
+        a = dec(a)
+        b = dec(b)
+    }
+}return or(a, b)
+
+def eq(a, b){}return not(neq(a, b))
+
+def readList(){
+    val = 1
+    while val {
+        val = in()
+        if neq(val, 0) {
+            lst <- val
+        }
+    }
+}return lst
+
+def printList(asdf : list(byte)){
+    count = 6
+    while count {
+        asdf -> val
+        out(val)
+    }
+}return 0
