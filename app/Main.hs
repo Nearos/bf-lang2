@@ -18,7 +18,7 @@ main = do
             case parseLang x code of
                 Left err -> print err
                 Right ast -> do
-                    -- print ast
+                    --print ast
                     case typeCheck ast of
                         Left err -> print err
                         Right functions -> do

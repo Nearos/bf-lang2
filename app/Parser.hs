@@ -65,6 +65,7 @@ parseSymbol = try $ do
         "end" -> parserFail "Reserved word used for symbol"
         "else" -> parserFail "Reserved word used for symbol"
         "def" -> parserFail "Reserved word used for symbol"
+        "null" -> parserFail "Reserved word used for symbol"
         val -> return val
 
 parseCommaList :: Parser a -> Parser [a]
