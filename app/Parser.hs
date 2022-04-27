@@ -136,7 +136,7 @@ parseWhile = try $ do
 parseExpression :: Parser PExpression
 parseExpression = do
     pos <- getPosition
-    expr <- parseNull <|> parseIntLit <|> parseCharLit <|> try parseFunCall <|> parseVariable
+    expr <- parseIntLit <|> parseCharLit <|> try parseFunCall <|> parseVariable <|> parseNull
     return $ Meta pos expr
 
 parseNull :: Parser (Expression SourcePos)
