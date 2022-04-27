@@ -268,7 +268,7 @@ typeCheckStatement (Assignment sym expr) = do
     idx <- getIndex
     typ <- lookupMatchOrAdd sym $ Unknown idx
     typ <- typeCheckExprMeta typ expr
-    lookupMatchOrAdd sym $ snd typ
+    -- lookupMatchOrAdd sym $ snd typ
     return $ Meta () $ Assignment sym $ fst typ
 
 typeCheckStatement (Push sym expr) = do
@@ -276,7 +276,7 @@ typeCheckStatement (Push sym expr) = do
     lsttyp <- lookupMatchOrAdd sym $ List $ Unknown idx
     let typ = case lsttyp of List a -> a
     typ <- typeCheckExprMeta typ expr
-    lookupMatchOrAdd sym (List $ snd typ)
+    -- lookupMatchOrAdd sym (List $ snd typ)
     return $ Meta () $ Push sym $ fst typ
 
 typeCheckStatement (Pop sym expr) = do
@@ -284,7 +284,7 @@ typeCheckStatement (Pop sym expr) = do
     lsttyp <- lookupMatchOrAdd sym $ List $ Unknown idx
     let typ = case lsttyp of List a -> a
     typ <- lookupMatchOrAdd expr typ
-    lookupMatchOrAdd sym $ List typ
+    -- lookupMatchOrAdd sym $ List typ
     return $ Meta () $ Pop sym expr
 
 typeCheckStatement (Expr expr) = do
