@@ -153,17 +153,26 @@ parseFunCall = do
 
 -- types
 
-parseType = parseUnknownType <|> parseByteType <|> parseListType <|> parseArrowType
+parseType = parseUnknownType 
+            <|> parseIntType 
+            <|> parseCharType
+            <|> parseListType 
+            <|> parseArrowType
 
 parseUnknownType :: Parser Typ
 parseUnknownType = do
     string "?"
     return $ Unknown 0
 
-parseByteType :: Parser Typ
-parseByteType = do
-    string "byte"
-    return Byte
+parseIntType :: Parser Typ
+parseIntType = do
+    string "nat"
+    return Nat
+
+parseCharType :: Parser Typ
+parseCharType = do
+    string "char"
+    return Char
 
 parseListType :: Parser Typ
 parseListType = do

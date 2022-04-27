@@ -8,12 +8,18 @@ data CompileError = ParseError ParseError | GenError String
 
 type Symbol = String
 
-data Typ = Unknown Int| Byte | List Typ | Arrow [Typ] Typ | UnknownFun Int Typ
+data Typ = Unknown Int
+         | Char
+         | Nat
+         | List Typ 
+         | Arrow [Typ] Typ 
+         | UnknownFun Int Typ
     deriving (Eq)
 
 instance Show Typ where
     show (Unknown n) = "?"++show n
-    show Byte = "byte"
+    show Char = "char"
+    show Nat = "nat"
     show (List a) = "list("++show a++")"
     show (Arrow args res) = 
         "function(" ++ 

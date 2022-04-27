@@ -34,20 +34,19 @@ def neq(a, b) {
 def eq(a, b){}return not(neq(a, b))
 
 def readList(){
-    val = 1
-    while val {
+    val = itoa(1)
+    while atoi(val) {
         val = in()
-        if neq(val, 0) {
+        if neq(atoi(val), 0) {
             lst <- val
         }
     }
 }return lst
 
-def printList(asdf : list(?)){
+def printList(lst){
     count = 6
     while count {
-        asdf -> ghjkl
-        ghjkl -> dffef
-        out(dffef)
+        lst -> val
+        out(val)
     }
 }return 0

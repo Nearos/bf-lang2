@@ -11,7 +11,8 @@ import Ast
 known :: Typ -> Bool
 known (Unknown _) = False
 known (UnknownFun _ _) = False
-known Byte = True
+known Nat = True
+known Char = True
 
 known (List a) = known a
 known (Arrow as a) = and (map known as) && known a
@@ -80,7 +81,8 @@ instantiateTypeVariable var val = map go
         go FrameSep = FrameSep
         go (Def ctx typ) = Def ctx $ fix typ
         
-        fix Byte = Byte
+        fix Nat = Nat
+        fix Char = Char
         fix (List a) = List $ fix a
         fix (Arrow args ret) = Arrow (map fix args) $ fix ret
         fix (Unknown n) 
@@ -98,7 +100,8 @@ matchTyp (Unknown id) b = do
 matchTyp a (Unknown id) = do
     modifyDecl $ instantiateTypeVariable id a
     return a
-matchTyp Byte Byte = return Byte
+matchTyp Nat Nat = return Nat
+matchTyp Char Char = return Char
 matchTyp (List a) (List b) = do
     sub <- matchTyp a b
     return $ List sub
@@ -156,10 +159,10 @@ typeCheckExpr :: Typ -> Expression -> TypeCheckEnvironment Typ
 typeCheckExpr typ (Variable s) = lookupMatchOrAdd s typ
 
 typeCheckExpr typ (IntLit _) =
-    matchTyp typ Byte
+    matchTyp typ Nat
 
 typeCheckExpr typ (CharLit _) =
-    matchTyp typ Byte
+    matchTyp typ Char
 
 typeCheckExpr typ (Function name args) = do
     index <- getIndex
@@ -219,12 +222,12 @@ typeCheckStatement (Expr expr) = do
     return ()
 
 typeCheckStatement (If expr stmnts1 stmnts2) = do
-    typeCheckExpr Byte expr
+    typeCheckExpr Nat expr
     typeCheckStatements stmnts1
     typeCheckStatements stmnts2
 
 typeCheckStatement (While expr stmts) = do 
-    typeCheckExpr Byte expr
+    typeCheckExpr Nat expr
     typeCheckStatements stmts
 
 ---
@@ -237,7 +240,8 @@ renumberUnknowns (UnknownFun _ a) = do
     a' <- renumberUnknowns a
     idx <- getIndex
     return $ UnknownFun idx a'
-renumberUnknowns Byte = return Byte
+renumberUnknowns Nat = return Nat
+renumberUnknowns Char = return Char
 renumberUnknowns (List a)= List <$> renumberUnknowns a 
 renumberUnknowns (Arrow as a) = 
     Arrow <$> mapM renumberUnknowns as <*> renumberUnknowns a
@@ -275,10 +279,12 @@ typeCheckFunDef (FunDef name args body returnValue) = do
 ---
 initialContext = TypeCheckContext{
     decl =  [
-        Def "in" $ Arrow [] Byte, 
-        Def "out" $ Arrow [Byte] Byte, -- no void type yet
-        Def "inc" $ Arrow [Byte] Byte,
-        Def "dec" $ Arrow [Byte] Byte
+        Def "in" $ Arrow [] Char, 
+        Def "out" $ Arrow [Char] Nat, -- no void type yet
+        Def "inc" $ Arrow [Nat] Nat,
+        Def "dec" $ Arrow [Nat] Nat,
+        Def "atoi" $ Arrow [Char] Nat,
+        Def "itoa" $ Arrow [Nat] Char
         ],
     varIndex = 1
 }
