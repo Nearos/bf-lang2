@@ -43,10 +43,11 @@ def readList(){
     }
 }return lst
 
-def printList(asdf : list(byte)){
+def printList(asdf : list(?)){
     count = 6
     while count {
-        asdf -> val
-        out(val)
+        asdf -> ghjkl
+        ghjkl ->dffef
+        out(dffef)
     }
 }return 0

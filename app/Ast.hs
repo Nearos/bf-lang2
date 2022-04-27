@@ -12,15 +12,15 @@ data Typ = Unknown Int| Byte | List Typ | Arrow [Typ] Typ | UnknownFun Int Typ
     deriving (Eq)
 
 instance Show Typ where
-    show (Unknown _) = "?"
+    show (Unknown n) = "?"++show n
     show Byte = "byte"
     show (List a) = "list("++show a++")"
     show (Arrow args res) = 
         "function(" ++ 
         intercalate ", " (map show args)
         ++") -> "++show res
-    show (UnknownFun _ res) = 
-        "function ? -> "++ show res
+    show (UnknownFun n res) = 
+        "function ?"++show n++" -> "++ show res
 
 data Expression = Variable Symbol
                 | IntLit Int

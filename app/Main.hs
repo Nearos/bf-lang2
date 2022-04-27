@@ -19,5 +19,7 @@ main = do
                 Right ast -> do
                     print ast
                     case typeCheck ast of
-                        Just err -> print err
-                        _ -> putStrLn "Sucessfully typechecked!"
+                        Left err -> print err
+                        Right functions -> do
+                            putStrLn "Sucessfully typechecked!"
+                            print functions

@@ -1,3 +1,4 @@
+{-#LANGUAGE TupleSections #-}
 module TypeInfer where
 
 import Control.Monad.Trans.State
@@ -38,6 +39,10 @@ instance Show TypeCheckError where
 
 data TypeCheckContextEntry  = Def {defSym :: Symbol, defTyp :: Typ}
                             | FrameSep
+
+instance Show TypeCheckContextEntry where
+    show (Def sym typ) = sym ++ " : " ++ show typ
+    show FrameSep = "-separator-"
 
 contextEntryUnknown FrameSep = False
 contextEntryUnknown (Def _ typ) = not $ known typ
@@ -224,12 +229,29 @@ typeCheckStatement (While expr stmts) = do
 
 ---
 
+renumberUnknowns :: Typ -> TypeCheckEnvironment Typ
+renumberUnknowns (Unknown _) = do
+    idx <- getIndex
+    return $ Unknown idx
+renumberUnknowns (UnknownFun _ a) = do
+    a' <- renumberUnknowns a
+    idx <- getIndex
+    return $ UnknownFun idx a'
+renumberUnknowns Byte = return Byte
+renumberUnknowns (List a)= List <$> renumberUnknowns a 
+renumberUnknowns (Arrow as a) = 
+    Arrow <$> mapM renumberUnknowns as <*> renumberUnknowns a
+
+
+---
+
 typeCheckFunDefs :: [FunDef] -> TypeCheckEnvironment ()
 typeCheckFunDefs defs = const () <$> mapM typeCheckFunDef defs
 
 typeCheckFunDef :: FunDef -> TypeCheckEnvironment ()
 typeCheckFunDef (FunDef name args body returnValue) = do
     modifyDecl pushFrame
+    args <- mapM (\(s, t) -> (s,) <$> renumberUnknowns t) args
     mapM (uncurry lookupMatchOrAdd) args
     typeCheckStatements body
     idx <- getIndex
@@ -261,12 +283,12 @@ initialContext = TypeCheckContext{
     varIndex = 1
 }
 
-typeCheck :: Program -> Maybe TypeCheckError
+typeCheck :: Program -> Either TypeCheckError [TypeCheckContextEntry]
 typeCheck prog = 
     case execStateT (typeCheckFunDefs prog) initialContext  of
-        Left err -> Just err
+        Left err -> Left err
         Right ctx -> case filter contextEntryUnknown (decl ctx) of
-            [] -> Nothing
-            Def n t:xs -> Just $ Unresolved n t
+            [] -> Right $ decl ctx
+            Def n t:xs -> Left $ Unresolved n t
             FrameSep:xs -> undefined --should be impossible 
         
