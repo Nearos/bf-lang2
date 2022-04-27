@@ -17,6 +17,7 @@ known (Unknown _) = False
 known (UnknownFun _ _) = False
 known Nat = True
 known Char = True
+known Void = True
 
 known (List a) = known a
 known (Arrow as a) = and (map known as) && known a
@@ -120,6 +121,7 @@ instantiateTypeVariable var val = do
         go2 (n, t) = (n, fix t)
         
         fix Nat = Nat
+        fix Void = Void
         fix Char = Char
         fix (List a) = List $ fix a
         fix (Arrow args ret) = Arrow (map fix args) $ fix ret
@@ -139,6 +141,7 @@ matchTyp a (Unknown id) = do
     instantiateTypeVariable id a
     return a
 matchTyp Nat Nat = return Nat
+matchTyp Void Void = return Void
 matchTyp Char Char = return Char
 matchTyp (List a) (List b) = do
     sub <- matchTyp a b
@@ -210,6 +213,11 @@ typeCheckExpr typ (IntLit a) = do
     typ <- matchTyp typ Nat
     idx <- addRef typ
     return (Meta idx $ IntLit a, typ)
+
+typeCheckExpr typ (Null) = do
+    typ <- matchTyp typ Void
+    idx <- addRef typ
+    return (Meta idx $ Null, typ)
 
 typeCheckExpr typ (CharLit a) = do
     matchTyp typ Char
@@ -306,6 +314,7 @@ renumberUnknowns (UnknownFun _ a) = do
     idx <- getIndex
     return $ UnknownFun idx a'
 renumberUnknowns Nat = return Nat
+renumberUnknowns Void = return Void
 renumberUnknowns Char = return Char
 renumberUnknowns (List a)= List <$> renumberUnknowns a 
 renumberUnknowns (Arrow as a) = 
@@ -362,7 +371,7 @@ typeCheckFunDef (FunDef name args body returnValue) = do
 initialContext = TypeCheckContext{
     decl =  [
         Def "in" $ Arrow [] Char, 
-        Def "out" $ Arrow [Char] Nat, -- no void type yet
+        Def "out" $ Arrow [Char] Void,
         Def "inc" $ Arrow [Nat] Nat,
         Def "dec" $ Arrow [Nat] Nat,
         Def "atoi" $ Arrow [Char] Nat,
@@ -426,6 +435,7 @@ resolveExpr (Function sym subexprs) =
 resolveExpr (Variable a) = return $ Variable a 
 resolveExpr (IntLit a) = return $ IntLit a 
 resolveExpr (CharLit a) = return $ CharLit a 
+resolveExpr Null = return Null
 
 ---
 

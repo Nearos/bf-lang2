@@ -9,6 +9,7 @@ data CompileError = ParseError ParseError | GenError String
 type Symbol = String
 
 data Typ = Unknown Int
+         | Void
          | Char
          | Nat
          | List Typ 
@@ -20,6 +21,7 @@ instance Show Typ where
     show (Unknown n) = "?"++show n
     show Char = "char"
     show Nat = "nat"
+    show Void = "void"
     show (List a) = "list("++show a++")"
     show (Arrow args res) = 
         "function(" ++ 
@@ -33,7 +35,8 @@ data Meta m d = Meta {
         value :: d m
     }deriving Show
 
-data Expression m   = Variable Symbol
+data Expression m   = Null
+                    | Variable Symbol
                     | IntLit Int
                     | CharLit Char
                     | Function Symbol [Meta m Expression]
@@ -76,5 +79,5 @@ showFunType (Meta f (FunDef name args _ (Meta retType _))) =
         printLstTypes [] = ""
         printLstTypes ((sym, typ):xs) = 
             sym ++ " : " ++ show typ 
-            ++ "    "
+            ++ "\n    "
             ++ printLstTypes xs

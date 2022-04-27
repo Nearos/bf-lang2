@@ -40,16 +40,19 @@ parseFunDef = do
     char ')'
     commentSpaces
     body <- parseStatements
-    string "return"
-    space
     commentSpaces
-    retVal <- parseExpression
+    retVal <- parseRet <|> (return $ Meta pos $ Null)
     return $ Meta pos $ FunDef name args body retVal
     where
         parseArgDecl = 
             (,) <$> parseSymbol <* commentSpaces 
             <*> (string ":" *> commentSpaces *> parseType 
             <|> return (Unknown 0))
+        parseRet = do 
+            string "return"
+            space
+            commentSpaces
+            parseExpression
 
 parseSymbol :: Parser Symbol
 parseSymbol = try $ do
@@ -132,8 +135,13 @@ parseWhile = try $ do
 parseExpression :: Parser PExpression
 parseExpression = do
     pos <- getPosition
-    expr <- parseIntLit <|> parseCharLit <|> try parseFunCall <|> parseVariable
+    expr <- parseNull <|> parseIntLit <|> parseCharLit <|> try parseFunCall <|> parseVariable
     return $ Meta pos expr
+
+parseNull :: Parser (Expression SourcePos)
+parseNull = do
+    string "null"
+    return Null
 
 parseVariable :: Parser (Expression SourcePos)
 parseVariable = Variable <$> parseSymbol
@@ -161,6 +169,7 @@ parseFunCall = do
 -- types
 
 parseType = parseUnknownType 
+            <|> parseVoidType
             <|> parseIntType 
             <|> parseCharType
             <|> parseListType 
@@ -175,6 +184,11 @@ parseIntType :: Parser Typ
 parseIntType = do
     string "nat"
     return Nat
+
+parseVoidType :: Parser Typ
+parseVoidType = do 
+    string "void"
+    return Void
 
 parseCharType :: Parser Typ
 parseCharType = do
